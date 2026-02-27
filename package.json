@@ -12,7 +12,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.41.0",
     "gh-pages": "^6.3.0",
     "leaflet": "^1.9.4",
     "react": "^19.2.4",
