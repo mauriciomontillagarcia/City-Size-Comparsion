@@ -1,4 +1,6 @@
 
+import area from '@turf/area';
+import { polygon, multiPolygon } from '@turf/helpers';
 import { NominatimSearchResult } from '../types';
 
 export const searchCities = async (query: string): Promise<NominatimSearchResult[]> => {
@@ -17,9 +19,22 @@ export const searchCities = async (query: string): Promise<NominatimSearchResult
 };
 
 export const calculateArea = (geojson: any): number => {
-  // Simple approximation for polygon area on sphere
-  // In a production app, we would use @turf/area
-  // Here we'll return a placeholder or implement a basic calculation if possible
-  // For this demo, let's assume we fetch area or provide a reasonable estimate
-  return Math.random() * 500 + 100; // Mock area in km2
+  try {
+    if (!geojson) return 0;
+    
+    let turfFeature;
+    if (geojson.type === 'Polygon') {
+      turfFeature = polygon(geojson.coordinates);
+    } else if (geojson.type === 'MultiPolygon') {
+      turfFeature = multiPolygon(geojson.coordinates);
+    } else {
+      return 0;
+    }
+
+    const areaInSqMeters = area(turfFeature);
+    return areaInSqMeters / 1000000; // Convert to km2
+  } catch (error) {
+    console.error('Error calculating area:', error);
+    return 0;
+  }
 };
