@@ -4,6 +4,7 @@ import L from 'leaflet';
 import SearchBox from './components/SearchBox';
 import DraggableCity from './components/DraggableCity';
 import { CityBoundary, NominatimSearchResult } from './types';
+import { calculateArea } from './services/geoService';
 
 const COLORS = [
   '#3b82f6', // blue
@@ -51,25 +52,31 @@ const App: React.FC = () => {
     const centroid: [number, number] = [parseFloat(result.lat), parseFloat(result.lon)];
     
     const color = COLORS[selectedCities.length % COLORS.length];
+    const areaKm2 = calculateArea(result.geojson);
+
+    // If there's already a city, place the new one on top of the first one
+    const currentPosition: [number, number] = selectedCities.length > 0 
+      ? [selectedCities[0].currentPosition[0], selectedCities[0].currentPosition[1]]
+      : centroid;
 
     const newCity: CityBoundary = {
       id: newId,
       name: result.display_name.split(',')[0],
       displayName: result.display_name,
-      areaKm2: 0,
+      areaKm2,
       color,
       geojson: result.geojson,
       centroid,
-      currentPosition: centroid,
+      currentPosition,
     };
 
     setSelectedCities(prev => [...prev, newCity]);
     setShowWelcome(false); // Hide welcome when a city is selected
 
     if (map) {
-      map.flyTo(centroid, 10, { duration: 1.5 });
+      map.flyTo(currentPosition, 10, { duration: 1.5 });
     }
-  }, [selectedCities.length, map]);
+  }, [selectedCities, map]);
 
   const handleDrag = useCallback((id: string, newPos: [number, number]) => {
     setSelectedCities(prev => prev.map(c => 
@@ -83,6 +90,52 @@ const App: React.FC = () => {
 
   const handleClearAll = () => {
     setSelectedCities([]);
+  };
+
+  const renderComparison = () => {
+    if (selectedCities.length < 2) return null;
+
+    const city1 = selectedCities[0];
+    const city2 = selectedCities[1];
+    
+    const larger = city1.areaKm2 > city2.areaKm2 ? city1 : city2;
+    const smaller = city1.areaKm2 > city2.areaKm2 ? city2 : city1;
+    
+    const diffPercent = ((larger.areaKm2 - smaller.areaKm2) / smaller.areaKm2) * 100;
+
+    return (
+      <div className="bg-white/90 backdrop-blur-lg border border-white/60 p-6 rounded-[2rem] shadow-2xl pointer-events-auto animate-in slide-in-from-left-4 fade-in duration-700">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+          </div>
+          <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">Comparativa de Tamaño</h2>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex justify-between items-end">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{larger.name}</span>
+              <span className="text-xl font-black text-slate-800">{larger.areaKm2.toLocaleString(undefined, { maximumFractionDigits: 1 })} <small className="text-xs font-medium text-slate-400">km²</small></span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{smaller.name}</span>
+              <span className="text-lg font-bold text-slate-600">{smaller.areaKm2.toLocaleString(undefined, { maximumFractionDigits: 1 })} <small className="text-xs font-medium text-slate-400">km²</small></span>
+            </div>
+          </div>
+
+          <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50">
+            <p className="text-sm font-semibold text-slate-700 leading-relaxed">
+              <span className="text-blue-600 font-black">{larger.name}</span> es un <span className="text-blue-600 font-black">{diffPercent.toFixed(1)}%</span> más grande que <span className="text-blue-600 font-black">{smaller.name}</span>.
+            </p>
+          </div>
+          
+          <p className="text-[10px] text-slate-400 font-medium italic">
+            * Cálculo basado en los límites administrativos oficiales de OpenStreetMap.
+          </p>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -129,7 +182,7 @@ const App: React.FC = () => {
         {selectedCities.length > 0 && (
           <div className="bg-white/80 backdrop-blur-lg border border-white/50 p-5 rounded-[2rem] shadow-2xl pointer-events-auto animate-in slide-in-from-left-4 duration-500">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Active Layers</h2>
+              <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Capas Activas</h2>
               <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{selectedCities.length}</span>
             </div>
             <div className="space-y-3 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
@@ -153,6 +206,8 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
+
+        {renderComparison()}
       </div>
 
       {/* Map Components */}
