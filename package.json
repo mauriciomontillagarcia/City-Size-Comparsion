@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/area": "^7.3.4",
+    "@turf/helpers": "^7.3.4",
     "gh-pages": "^6.3.0",
     "leaflet": "^1.9.4",
     "react": "^19.2.4",
